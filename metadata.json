@@ -1,0 +1,6 @@
+{
+  "name": "Future-KL Lab: KV-Cache Token Utility & PhD Benchmark",
+  "description": "Interactive testbed and research studio for validating Future-KL causal token utility, comparing with 22 KV-cache eviction baselines (H2O, SnapKV), and structuring PhD doctoral proposals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

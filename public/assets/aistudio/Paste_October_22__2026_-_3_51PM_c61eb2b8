@@ -1,0 +1,1070 @@
+# تبدیل به SDD — ساختار و اسناد
+
+مجموعهٔ کامل را به یک **مخزن SDD (Spec-Driven Development)** تبدیل کردم: هر مؤلفهٔ سیستم یک Spec با شناسه، الزامات شماره‌دار، معیار پذیرش قابل‌سنجش، قرارداد داده، محدودیت‌ها، ریسک و provenance دارد. اعداد پراکنده در گزارش‌ها در یک **Findings Registry** متمرکز شدند تا هر ادعا به یک مسیر `results/` قابل ردیابی باشد.
+
+**نکتهٔ روش‌شناختی مهم:** در فایل‌های منبع دو روایتِ به‌ظاهر متناقض دربارهٔ اوراکل وجود دارد — (الف) در `report.md` «Idea6 از random بدتر است» و (ب) در سند «آزمایش‌ها اجرا شدند» «sanity پاس شد». این تناقض در Findings Registry به‌صورت **دو یافتهٔ جدا با دامنهٔ متفاوت** ثبت شد (F4a در برابر F4b/F2)؛ هر دو درست‌اند و علتشان همان «گسست معناشناسیِ مداخله» است که خودش محور اصلی برنامه است.
+
+---
+
+## `sdd/README.md`
+
+```markdown
+# SDD — برنامهٔ «اهمیت توکن در KV-Cache»
+
+مخزن اسناد Spec-Driven برای پروژهٔ Future-KL / Idea6.
+هر Spec = یک مؤلفه یا یک تعهد پژوهشی. هر عدد = یک یافته با شناسه.
+
+## نقشهٔ اسناد
+
+| فایل | نقش | وضعیت |
+|---|---|---|
+| `00-constitution.md` | اصول غیرقابل‌مذاکره، قواعد گزارش‌دهی | v1.0 |
+| `01-spec-research-program.md` | برنامهٔ پژوهشی، RQها، محورها | v0.3 |
+| `02-spec-suite-build.md` | ساخت مجموعهٔ بنچمارک | implemented |
+| `03-spec-oracle.md` | اوراکل Future-KL (remove/evict) | implemented |
+| `04-spec-features.md` | استخراج ویژگی | implemented (pickle نامعتبر) |
+| `05-spec-kv-comparison.md` | مقایسهٔ ۲۲ روش KV | implemented (۱۲ اجرایی) |
+| `06-spec-surrogate.md` | تقریب‌گر سریع | implemented (پایلوت) |
+| `07-spec-verification.md` | اعتبارسنجی مستقل اوراکل | implemented (۴ تست) |
+| `08-findings-registry.md` | F1–F8 با مسیر شاهد | living |
+| `09-task-board.md` | وظایف، فازها، معیار پذیرش | living |
+| `10-data-contracts.md` | اسکیمای تمام آرتیفکت‌ها | frozen |
+
+## قاعدهٔ ردیابی (Traceability)
+
+هر معیار پذیرش `AC-xx` در یک Spec باید:
+1. یک test یا اسکریپت مشخص داشته باشد،
+2. یک آرتیفکت خروجی با مسیر مشخص،
+3. اگر عددی گزارش می‌کند، به یک F-شناسه در `08-findings-registry.md` وصل باشد.
+
+هیچ عددی بدون مسیر `results/` در گزارش نهایی نوشته نمی‌شود (قانون III).
+```
+
+---
+
+## `sdd/00-constitution.md`
+
+```markdown
+# Constitution — اصول غیرقابل‌مذاکره
+
+وضعیت: v1.0 (منجمد) · مبنای استخراج: بخش Architecture + قواعد گزارش‌دهی
+
+## اصل I — یک برآوردگر، یک ماژول
+ریاضیات Future-KL فقط در اوراکل زندگی می‌کند. هیچ ماژول دیگری KL
+leave-one-out را بازپیاده نمی‌کند. (منبع: Architecture §Design principles 1)
+
+## اصل II — دو مداخله، دو گزارش
+`remove` و `evict` دو برآوردگر متفاوت‌اند و هرگز با هم مخلوط نمی‌شوند.
+هیچ جدولی برچسب‌های یکی را با ارزیابی دیگری گزارش نمی‌کند مگر با
+تصریح صریح در عنوان. (مبنا: F3، F5)
+
+## اصل III — هیچ عددی بدون مسیر
+هر عدد در هر گزارش باید به یک آرتیفکت در `results/` یا `runs/` اشاره کند.
+grep روی مسیر باید نتیجه بدهد.
+
+## اصل IV — پروکسی بی‌صدا ممنوع
+روشی که شرایط اجرا ندارد، `not_applicable` می‌گیرد — نه نمرهٔ صفر، نه
+baseline جعلی. (منبع: Registry، ستون status)
+
+## اصل V — حافظهٔ نگه‌داشته ≠ توجه فعال
+دو دستهٔ `retained_kv` و `active_attention` هرگز در یک جدول جمع نمی‌شوند.
+`quest_active` و `sparq_active` حافظهٔ KV را کم نمی‌کنند. (منبع: comparison.md)
+
+## اصل VI — آیندهٔ ثابت است
+تولید `Y` خارج از attribution است. در تمام مداخلات، همان `Y` تکرار می‌شود.
+اگر نسخهٔ چندمسیره لازم شد، به‌عنوان یک estimand جداگانه ثبت می‌شود.
+
+## اصل VII — in-sample بودن صریح است
+اوراکل به `Y` دسترسی دارد؛ هر ارزیابی که از برچسب‌های اوراکل استفاده
+می‌کند باید حداقل یک بار در متن «upper bound، نه روش قابل‌استقرار» علامت
+بخورد. (مبنا: F8)
+
+## اصل VIII — آرتیفکت‌های مقاوم به کرش
+هر نمونه یک ردیف مستقل می‌نویسد (`npz` + یک خط JSONL). قطع اجرا نباید
+نمونه‌های قبلی را از بین ببرد. (منبع: Architecture §Design principles 6)
+
+## اصل IX — گسترش‌پذیری با رابط تایپ‌دار
+روش جدید = subclass از `KVMethod` + ثبت در `registry.py` + تست.
+`run()` اعتبارسنجی شکل/dtype/ماسک را انجام می‌دهد؛ `select()` مستقیم
+فراخوانی نمی‌شود در production.
+
+## اصل X — آمار با عدم‌قطعیت
+هر میانگین با CI بوت‌استرپ در سطح prompt گزارش می‌شود. مقایسه‌ها جفتی
+(Wilcoxon) و در صورت تعدد، با FDR. n هر معیار جداگانه ذکر می‌شود.
+```
+
+---
+
+## `sdd/01-spec-research-program.md`
+
+```markdown
+# Spec 001 — برنامهٔ پژوهشی «Future Utility و مدیریت حافظهٔ KV»
+
+شناسه: SPEC-001 · نسخه: 0.3 · وضعیت: **پایه (Baseline frozen)**
+اصل‌نامه: 00-constitution.md (I, II, VII) · یافته‌ها: 08-findings-registry.md
+
+## 1. بیانیه
+مدل‌های خودبازگشتی برای هر قدم توزیعی روی واژگان می‌دهند؛ در بافت بلند،
+KV-cache گلوگاه است و eviction باید تصمیم بگیرد «چه چیزی بماند». روش‌های
+رایج (H2O، SnapKV) بر پروکسی‌های ارزان تکیه می‌کنند که همبستگی‌شان با
+utility واقعی اثبات نشده.
+
+سؤال مرکزی:
+> utility آیندهٔ یک توکنِ زمینه چگونه به‌صورت علّی تعریف، تخمین و
+> کم‌هزینه پیش‌بینی می‌شود، و چگونه در مدیریت حافظهٔ کران‌دار به کار می‌رود؟
+
+## 2. سؤالات پژوهشی
+
+| ID | سؤال | محور | وضعیت | شاهد |
+|---|---|---|---|---|
+| RQ1 | آیا امتیاز Future-KL پیش‌بین معتبر افت واقعی است؟ | A | ✅ پاسخ اولیه | F2, F4a |
+| RQ2 | آیا معناشناسی مداخله بر برچسب‌ها اثر دارد؟ | A/B | ✅ پاسخ قوی | F3, F5 |
+| RQ3 | آیا اهمیت نسبت به `Y` پایدار است؟ | C | ✅ پاسخ مثبت (شرطی) | F7 |
+| RQ4 | آیا می‌توان importance را بدون oracle و ارزان تخمین زد؟ | B/D | 🟡 پایلوت | F9 (جدید) |
+
+## 3. محورها
+
+### محور A — اعتبارسنجی اوراکل و کشف گسست (ستون فقرات)
+ادعاهای قابل‌دفاع:
+- (A1) Future-KL تعریفی عملیاتی و **درون‌سازگار** از اهمیت است:
+  حذف top-unit ها مدل را ۳.۵× بیشتر از حذف random خراب می‌کند. (F4a)
+- (A2) برچسب remove و evict تقریباً بی‌ارتباط‌اند: ρ≈0.01–0.02،
+  Jaccard≈0.14 روی دو خانوادهٔ مدل. (F3, F5)
+- (A3) نتیجه: «اهمیت» ویژگی مدل نیست، ویژگی **عملیات مداخله** است.
+  این یافتهٔ نظری در کار قبلی گزارش نشده.
+
+### محور B — eviction به‌مثابه policy (پایهٔ مقالهٔ ۲)
+اوراکل = ground truth. هدف: policy سریع با فاصلهٔ کم به کیفیت اوراکل.
+baseline: last-token attention، entropy، H2O proxy، recency.
+
+### محور C — پایداری نسبت به مرجع (reference-agnostic)
+برچسب‌ها در برابر تغییر `Y` پایدارند (F7: ρ≈0.95–0.98 روی base،
+ρ=1.0 روی instruct چون سه Y یکسان‌اند). شرط لازم برای ادعای «اهمیت
+یک کمیت تعریف‌شده است، نه artifact یک مسیر».
+
+## 4. خروجی‌ها
+
+| خروجی | RQها | داده موجود | کار باقی‌مانده |
+|---|---|---|---|
+| پروپوزال دکتری | RQ1–4 | F1–F9 کافی | بازنویسی نهایی (فاز B) |
+| مقالهٔ ۱ (Q1) | RQ1–3 | F2–F5, F7 | جدول ۳ مدل × ۶ روش + sanity ۳ مدل |
+| مقالهٔ ۲ (Q1) | RQ4 | F9 | scorer out-of-sample + trade-off |
+
+## 5. روش‌شناسی
+
+- **سوئیت:** `suite.jsonl` (338 نمونهٔ قابل اجرا؛ 300–349 = synth)
+- **مدل‌ها:** Gemma-3-4b-pt، Qwen2.5-3B-Instruct، Nous-Hermes-3-Llama-3.1-8B
+  (سه خانوادهٔ معماری؛ Llama-3-8B gated)
+- **مداخلات:** `remove` (حذف فیزیکی، position حفظ‌شده) /
+  `evict` mask-only (کش کامل، صفر کردن ماسک، بدون override موقعیت)
+- **معیارها:** ΔNLL پاسخ مستقل، future-KL، بازیابی شاهد (vs شانس)،
+  ρ/Jaccard، Wilcoxon paired، CI بوت‌استرپ ۲۰۰۰
+- **کنترل‌ها:** seed ثابت، `prompt_ids`/`y_ids` یکسان بین جفت‌ها،
+  اعلام صریح in-sample
+
+## 6. معیارهای پذیرش
+
+### پروپوزال (فاز B)
+- [ ] AC-101: ۵ سؤال (چرا/چه/چطور/نو/ریسک) هرکدام ≥۱ مرجع F#
+- [ ] AC-102: بخش «نتایج اولیه» با F1–F9
+- [ ] AC-103: هر عدد grep-able در `results/`
+
+### مقالهٔ ۱ (فاز C)
+- [ ] AC-111: sanity ۳۸ نمونه × ۳ مدل، ترتیب top>random>bottom با p<0.05
+- [ ] AC-112: جدول KV ۳ مدل × ۶ روش با CI
+- [ ] AC-113: ρ/Jaccard گسست روی ۳ مدل
+- [ ] AC-114: ≥۱۵ رفرنس
+- [ ] AC-115: review داخلی طبق اصل‌نامه
+
+### مقالهٔ ۲ (فاز D)
+- [ ] AC-121: ≥۳ scorer سریع + ≥۲ baseline ادبی با هزینهٔ محاسبه
+- [ ] AC-122: هم‌راستایی out-of-sample با برچسب اوراکل روی holdout (قلب مقاله)
+- [ ] AC-123: پلوت دقت–هزینه
+
+## 7. محدودیت‌های شناخته‌شده
+1. اوراکل in-sample است → upper bound نه روش عملی (F8)
+2. 38/50 نمونه، synth-heavy (NIAH-like) → generalization نامعلوم
+3. bf16 (float32 فقط در §7 gt-check)؛ single-GPU 24GB
+4. گسست روی ۲ خانواده تأیید شده؛ خانوادهٔ سوم (Hermes) هم تأیید کرد (F5)
+
+## 8. ریسک‌ها
+
+| ریسک | نشانه | اقدام |
+|---|---|---|
+| D4 نتیجهٔ منفی | هیچ scorer سریع هم‌راستا نباشد | خودش مقالهٔ negative-result |
+| GPU ناکافی | 38×3 مدل + 5-fold | sweep ۱۲ نمونه + اجرای شبانه |
+| داور: «چرا in-sample؟» | — | بخش 7 + D4 پاسخ مستقیم |
+
+## 9. تعریف «انجام»
+Spec قابل plan است وقتی: (a) هر RQ ≥۱ AC، (b) سه محور تأیید شده،
+(c) فازها در Task Board با بودجهٔ GPU هماهنگ‌اند. ← (b) محقق شد.
+```
+
+---
+
+## `sdd/02-spec-suite-build.md`
+
+```markdown
+# Spec 002 — ساخت مجموعهٔ بنچمارک ترکیبی
+
+شناسه: SPEC-002 · نسخه: 1.0 · وضعیت: **implemented**
+فایل مرجع: `1-suite_build.py` · مصرف‌کننده: SPEC-003
+
+## 1. هدف
+یک `suite.jsonl` با تنوع گوشه‌ای: کوتاه/بلند، آسان/سخت، استدلال، thinking،
+tool-call، چندنوبتی، کد، و بازیابی کنترل‌شدهٔ بلند. هر رکورد پاسخ مرجع و
+**شاهد دقیق** دارد تا اوراکل را بتوان مستقل اعتبارسنجی کرد.
+
+## 2. الزامات کارکردی
+
+| ID | الزام |
+|---|---|
+| FR-201 | هر منبع HF در try/except جدا؛ گیت/تغییرنام/آفلاین → skip با هشدار، بدون abort |
+| FR-202 | منبع `synthetic` محلی و همیشه موفق |
+| FR-203 | هر رکورد `idx` یکتای سراسری (ترتیب نوشتن، 0-based) |
+| FR-204 | کلیدهای اختیاری با `setdefault`: `tools=None، thinking=False، gold=None، evidence=[]، meta={}` |
+| FR-205 | `--synthetic-lengths` round-robin؛ هر طول در هر دو نوع NIAH/KV ظاهر شود |
+| FR-206 | `--seed` ثابت → بازتولید کامل |
+| FR-207 | NIAH: سوزن + ۲ سوزن مزاحم از همان شهرها، عمق تصادفی |
+| FR-208 | KV: دیکشنری hex key/value، یک کلید پرسیده، شاهد = جفت دقیق |
+| FR-209 | FILL: استخر بستهٔ ۱۲ جملهٔ خنثی → تنها اطلاعات لازم سوزن است |
+
+## 3. الزامات غیرکارکردی
+- NFR-201: بدون دانلود برای synthetic
+- NFR-202: هر خط JSONL مستقل و قابل پارس
+- NFR-203: هیچ load اضافی بعد از ساخت
+
+## 4. قرارداد داده
+`10-data-contracts.md §1` (schema رکورد suite)
+
+## 5. معیارهای پذیرش
+
+| AC | معیار | روش سنجش |
+|---|---|---|
+| AC-201 | ۳۵۰ رکورد، ۸ دسته | `wc -l suite.jsonl` + شمارش category |
+| AC-202 | تمام رکوردها `evidence` دارند (برای synth حتماً) | assert در build |
+| AC-203 | `idx` یکتا و پیوسته | assert در نوشتن |
+| AC-204 | NIAH سوزن حاوی `num` دقیقاً در `evidence` | assert |
+| AC-205 | هر طول در هر دو نوع | جدول گزارش پایان |
+
+## 6. نتایج اجرا (شاهد)
+- ۳۵۰ رکورد؛ ۳۳۸ قابل اجرا در پایپ‌لاین KV
+- ۱۲ رکورد `synth_kv` با N≈۹۲۲۵–۹۲۹۲ کنار گذاشته شدند (سقف ۴۰۰۰)
+- توزیع: `qa_short` 50، `math_hard_think` 50، `mcq_hard` 50، `code` 50،
+  `chat_multiturn` 50، `qa_multidoc` 50، `synth_niah` 25، `synth_kv` 13
+- **گیت/شکست:** `gsm8k` (cache PermissionError)، `xlam` (gated)،
+  `longbench_v2` (0 رکورد) — در گزارش build به‌عنوان SKIPPED ثبت شد
+
+## 7. محدودیت‌ها
+- طول NIAH و KV متوازن نیست (۱۰۰۰/۴۰۰۰ در برابر ۲۰۰۰/۸۰۰۰) → مقایسهٔ
+  بین‌دسته‌ای کنترل‌شدهٔ طول نیست
+- `longbench_v2` در اجرای ثبت‌شده ۰ رکورد داد → دستهٔ `long_doc_mcq` خالی است
+- `thinking` با m=100 فقط ابتدای زنجیرهٔ تفکر را می‌بیند
+
+## 8. Provenance
+`1-suite_build.py` · SHA-256 سوئیت در `results/kv_report/provenance.json`
+(`dabd7ce3…67aec7`)
+```
+
+---
+
+## `sdd/03-spec-oracle.md`
+
+```markdown
+# Spec 003 — اوراکل Future-KL (Idea6)
+
+شناسه: SPEC-003 · نسخه: 1.2 · وضعیت: **implemented**
+فایل مرجع: `2-idea6_run.py` · مصرف‌کننده: SPEC-005، SPEC-006، SPEC-007
+اصل‌نامه: I, II, VI, VIII
+
+## 1. تعریف رسمی
+
+پرامپت $P=[t_0,\dots,t_{N-1}]$؛ آیندهٔ ثابت $Y=[y_0,\dots,y_{m-1}]$
+(یک‌بار ساخته، برای همهٔ مداخلات ثابت — teacher-forcing)؛
+$S=P\Vert Y$.
+
+برای واحد مداخله $u$ و گام آینده $k$:
+$$D[u,k]=D_{KL}\Big(p_\theta(\cdot\mid P,Y_{<k})\;\|\;p_\theta(\cdot\mid P^{(u)},Y_{<k})\Big)$$
+$$\operatorname{imp}(u)=\sum_{k=0}^{m-1}D[u,k]$$
+
+**نام دقیق:** *Leave-One-Out Future-Distribution Sensitivity، مشروط به
+continuation ثابت و نوع مداخله*. نه ground-truth مطلق.
+
+## 2. الزامات کارکردی
+
+| ID | الزام |
+|---|---|
+| FR-301 | دو اسکیم: `remove` (حذف فیزیکی، position اصلی حفظ) و `evict` (mask-only روی کش کامل، بدون gather، بدون override position) |
+| FR-302 | Y یک‌بار greedy/pad-to-m؛ `m_eff` = تا اولین EOS (شامل EOS) |
+| FR-303 | واحد: تک‌توکن اگر N≤max_units وگرنه بلوک `ceil(N/max_units)`؛ امتیاز بلوک به توکن‌ها broadcast |
+| FR-304 | بچ‌بندی واحدهای هم‌اندازه در یک forward |
+| FR-305 | KL در fp32، در فضای log (`exp(lp)·(lp−lq)`)، بدون ε |
+| FR-306 | مرجع از همان مسیر کد با «هیچ چیز حذف‌شده» |
+| FR-307 | گام‌های بعد از `m_eff` صفر می‌شوند |
+| FR-308 | top-K با حصر sink (پیش‌فرض ۴) و `K=round(frac·N)` |
+| FR-309 | ذخیره: `diffs[units,m]`، `imp_raw[N]`، `imp_units`، `unit_bounds`، `block_size`، `important_indices`، `prompt_ids`، `y_ids`، `m_eff`، `evidence_idx` |
+| FR-310 | `--resume` بر اساس وجود `npz` |
+| FR-311 | هر نمونه یک ردیف `sample_summary.jsonl` (مقاوم به کرش) |
+
+## 3. الزامات غیرکارکردی
+- NFR-301: `fwd(keep=…)` فقط logitهای انتهایی را materialize می‌کند
+- NFR-302: KL در fp32 حتی تحت autocast
+- NFR-303: بدون gather در `evict` (کش کامل + ماسک هم‌عرض + بدون position_ids)
+
+## 4. قرارداد داده
+`10-data-contracts.md §3` (`matrices/s_XXXXXX.npz`)
+
+## 5. معیارهای پذیرش
+
+| AC | معیار | روش سنجش |
+|---|---|---|
+| AC-301 | `evict` mask-only vs forward تازه: KL≈0، max\|Δlogit\|≈5e-5 | `gt_check` / `align_evict` |
+| AC-302 | baseline بدون حذف: KL=0 | `full_vs_full_sanity` |
+| AC-303 | shape `diffs` = (units, m)؛ مقادیر finite و ≥0 | assert در run |
+| AC-304 | `m_eff` مطابق اولین EOS | `shared_horizon` |
+| AC-305 | `prompt_ids` بین دو اسکیم یکسان (در جفت‌های هم‌مدل) | `verify_y` |
+
+## 6. نتایج ثبت‌شده (شاهد)
+- `results/full/` : ۳۸ ماتریس (gemma-3-4b-pt، scheme=**remove**، m=100،
+  frac=0.2، sink=4، bf16، max_prompt=4000)
+- `results/full_remove_qwen25/` و `results/full_evict_qwen25/` :
+  ۳۸ جفت روی Qwen2.5-3B-Instruct
+- `results/full_maskonly_qwen25/` : نسخهٔ mask-only صحیح evict
+- `results/full_remove_hermes38/` و `results/full_evict_hermes38/` :
+  خانوادهٔ سوم (Hermes-3-Llama-3.1-8B)
+
+## 7. محدودیت‌های مفهومی (مستند و پذیرفته‌شده)
+1. **`evict` اهمیت علّی کامل نیست:** اطلاعات توکن در hidden-stateهای
+   بالاترِ توکن‌های بعدی باقی می‌ماند؛ فقط «سهم باقی‌ماندهٔ K/V» سنجیده می‌شود.
+2. **leave-one-out افزونگی را نمی‌بیند:** دو توکن جایگزین هم‌زمان، هر
+   کدام «بی‌اهمیت» برچسب می‌خورند.
+3. **sink:** توکن‌های اول KL بزرگ می‌دهند که ربطی به محتوا ندارد؛
+   در انتخاب حذف شده‌اند اما در `imp_norm` (نرمال‌سازی max) نه.
+4. **`zero` اسکیم حذف نشده و توصیه نمی‌شود:** بردار صفر = توکن OOD.
+   در پیادهٔ فعلی استفاده نمی‌شود.
+5. **`remove` با حفظ position یک انتخاب است، نه بدیهی:** دو سؤال علّی
+   متفاوت (compact vs preserve) — پیادهٔ فعلی preserve است.
+6. **هزینه:** O(N) forward مستقل از m؛ برای N بزرگ گران.
+
+## 8. ریسک‌ها
+| ریسک | اقدام |
+|---|---|
+| ناسازگاری عرض ماسک/کش در `evict` (باگ تاریخی) | mask-only، بدون gather، بدون override؛ تست `test_mask_evict` |
+| نشت position در `remove` | `position_ids` صریح، تست `align_evict` |
+| KL منفی/NaN در توزیع‌های نزدیک به صفر | log-space، بدون clip |
+
+## 9. Provenance
+`2-idea6_run.py` · meta در `results/full/run_meta.json` · CLAIM: برچسب‌ها
+فقط تحت همان معناشناسی معتبرند (اصل II).
+```
+
+---
+
+## `sdd/04-spec-features.md`
+
+```markdown
+# Spec 004 — استخراج ویژگی برای تقطیر
+
+شناسه: SPEC-004 · نسخه: 1.0 · وضعیت: **implemented ولی خروجی نامعتبر**
+فایل مرجع: `4-features.py` · مصرف‌کننده: SPEC-006
+
+## 1. هدف
+برای هر پرامپت دارای اوراکل، ماتریس ویژگی per-token + `Y` + برچسب
+`fattn` (attention آینده، برای مقایسه با Idea6) تولید شود.
+
+## 2. الزامات کارکردی
+| ID | الزام |
+|---|---|
+| FR-401 | یک forward با `output_attentions` و `output_hidden_states` |
+| FR-402 | آماره‌های attention به تفکیک لایه: recv_mean/max/std، win_mean/max/std، ent |
+| FR-403 | ویژگی‌های norm K/V فقط از لایه‌هایی که cache length == N (global) |
+| FR-404 | ویژگی‌های موقعیت (i، from_end، rel، N، is_sink) |
+| FR-405 | ویژگی‌های واژگانی (word_start، punct، digit، count) |
+| FR-406 | ویژگی‌های مدل (surprisal، pred_ent، cos_last) |
+| FR-407 | hidden state لایهٔ میانی، float16 |
+| FR-408 | برچسب `fattn` = جمع attention queryهای y_0..y_{m-1} به هر توکن prompt |
+| FR-409 | `--from-oracle-ids` برای بازاستفادهٔ دقیق توکن‌های chat-formatted |
+| FR-410 | اگر طول توکن‌ها با oracle یکی نبود → skip + شمارش |
+
+## 3. قرارداد داده
+`10-data-contracts.md §4` (`feats.pkl`)
+
+## 4. معیارهای پذیرش
+| AC | معیار |
+|---|---|
+| AC-401 | شکل X = (N, D) با D یکسان در همهٔ آیتم‌ها |
+| AC-402 | تمام مقادیر X و H finite |
+| AC-403 | `ids` دقیقاً برابر `prompt_ids` اوراکل |
+
+## 5. وضعیت واقعی اجرا (شاهد)
+`results/full/feats.pkl` (۸۴MB، ۱۳ نمونه):
+- **D ناسازگار:** ۷ آیتم با D=267 (N>1023)، ۶ آیتم با D=325 (N≤1023)
+- **۵۶ مقدار non-finite در H**
+- ⇒ **AC-401 و AC-402 نقض شد؛ pickle غیرقابل‌آموزش است و در
+  SPEC-005 استفاده نمی‌شود**
+
+## 6. رفع باگ انجام‌شده
+`token_features` قبلی روی `torch.stack` کرش می‌کرد چون لایه‌های local
+کش کوتاه‌تر از N دارند. با لیست مرتب `(name, tensor)` و محاسبهٔ norm
+فقط از لایه‌های `cache_len == N` بازنویسی شد — ولی D هنوز با N تغییر
+می‌کند.
+
+## 7. اقدام لازم
+- [ ] AC-404: بازتولید با ستون‌های همیشهٔ D ثابت (حذف ستون‌های وابسته به N)
+      یا padding/mask صریح
+- [ ] AC-405: assert finite قبل از pickle
+- [ ] AC-406: `feats.pkl` جایگزین شود
+
+## 8. Provenance
+`4-features.py` · خروجی نامعتبر: `results/full/feats.pkl`
+```
+
+---
+
+## `sdd/05-spec-kv-comparison.md`
+
+```markdown
+# Spec 005 — مقایسهٔ روش‌های KV
+
+شناسه: SPEC-005 · نسخه: 1.1 · وضعیت: **implemented (۱۲ روش)**
+فایل مرجع: `5-kv_compare.py` + `kvbench/` · اصل‌نامه: II, IV, V, X
+
+## 1. هدف
+اجرای مستقل و قابل‌ممیزی روش‌های انتخاب KV روی همان `suite.jsonl`، با
+بودجهٔ یکسان، روی آیندهٔ ثابت `Y` و cache بازیابی‌شده از prefill اصلی.
+هیچ روشی بازاجرای prompt نیست.
+
+## 2. دامنهٔ روش‌ها (۲۲ درخواستی)
+
+### ۱۲ اجرایی
+`first_k`, `last_k`, `full_kv`, `random` (baseline)؛
+`adakv`, `snapkv`, `h2o`, `pyramidkv`, `rocketkv_prompt`, `streaming_llm`
+(retained_kv)؛ `quest_active`, `sparq_active` (active_attention).
+
+### ۱۰ اجرانشده (not_applicable، صریح)
+`duo_attention`, `fastgen`, `foresightkv`, `kivi`, `kvpop`, `kvquant`,
+`kvzip`, `lu_kv`, `palu`, `rdkv` — هر کدام دلیل مشخص در registry.
+
+### مرجع
+`idea6_oracle` (privileged، فقط روی ۳۸ نمونهٔ دارای اوراکل).
+
+## 3. الزامات کارکردی
+| ID | الزام |
+|---|---|
+| FR-501 | فقط ۵ لایهٔ full_attention فشرده می‌شوند؛ ۲۹ لایهٔ sliding دست‌نخورده |
+| FR-502 | ذخیرهٔ K/V واقعاً gather می‌شود؛ موقعیت RoPE اصلی حفظ |
+| FR-503 | `full_kv` کنترل صفر است: KL و ΔNLL ≡ ۰ |
+| FR-504 | KL و ΔNLL از گام ۱ به بعد (گام ۰ قبل از eviction) |
+| FR-505 | gold NLL فقط روی ≤۳۲ توکن اول پاسخ؛ مستقل از انتخاب cache |
+| FR-506 | بودجهٔ global `B = round(frac·N)`؛ head-wise برای AdaKV |
+| FR-507 | ثبت padding در allocated ratio |
+| FR-508 | registry با commit pin؛ نبود پیاده = `not_applicable`، نه صفر |
+| FR-509 | manifest با hash سوئیت، hash کد، نسخه‌ها؛ `--resume` فقط با hash یکسان |
+| FR-510 | exclusions.json با دلیل هر کنارگذاری |
+
+## 4. قرارداد داده
+`10-data-contracts.md §5` (manifest, per_sample.jsonl, exclusions, inputs,
+provenance)
+
+## 5. معیارهای پذیرش
+| AC | معیار |
+|---|---|
+| AC-501 | `full_kv` در همهٔ نمونه‌ها: future_kl=0 و delta_nll_gold=0 |
+| AC-502 | native_validation: KL=0، top1_agreement=1.0 |
+| AC-503 | هر ردیف per_sample: تمام متریک‌ها finite |
+| AC-504 | no duplicate (idx, method) |
+| AC-505 | coverage: هر پرامپت یا ردیف دارد یا در exclusions |
+| AC-506 | گزارش نهایی فقط با cohort مشترک، اوراکل را با baseline مقایسه کند |
+
+## 6. نتایج ثبت‌شده (شاهد)
+
+اجرا: ۳۳۸ پرامپت، ۴۰۹۴ ردیف، ۸۵ تست pass. مدل: gemma-3-4b-pt.
+
+### همهٔ نمونه‌ها (KL آینده ↓)
+| روش | KL | ΔNLL gold | شاهد recall | KV alloc |
+|---|---:|---:|---:|---:|
+| full_kv | 0.0000 | 0.0000 | 1.000 | 1.000 |
+| adakv | 0.1139 | 0.2028 | 0.560 | 0.873 |
+| snapkv | 0.1164 | 0.2161 | 0.568 | 0.866 |
+| rocketkv_prompt | 0.1243 | 0.3240 | 0.421 | 0.866 |
+| last_k | 0.1363 | 0.6283 | 0.152 | 0.866 |
+| h2o | 0.1448 | 0.4299 | 0.236 | 0.866 |
+| random | 0.1476 | 0.3113 | 0.198 | 0.866 |
+| streaming_llm | 0.1494 | 0.5827 | 0.147 | 0.866 |
+| pyramidkv | 0.1540 | 0.2157 | 0.462 | 0.866 |
+| first_k | 0.2951 | 0.3884 | 0.247 | 0.866 |
+
+### توجه فعال (جداگانه؛ حافظه کم نمی‌شود)
+| روش | KL | ΔNLL | active recall |
+|---|---:|---:|---:|
+| sparq_active | 0.0041 | −0.0109 | 0.334 |
+| quest_active | 0.0339 | +0.0776 | 0.372 |
+
+### cohort مشترک با اوراکل (n=38)
+| روش | KL | ΔNLL gold | evidence recall |
+|---|---:|---:|---:|
+| adakv | 0.0030 | 0.2197 | 0.770 |
+| snapkv | 0.0031 | 0.2540 | 0.791 |
+| idea6_oracle | 0.0131 | 2.3293 | 0.113 |
+| random | 0.1165 | 1.6279 | 0.197 |
+
+**تفسیر ثبت‌شده در گزارش:** برچسب‌های `remove` (که در `results/full`
+ساخته شدند) با مداخلهٔ KV (gather) هم‌راستا نیستند؛ همین گسست است که
+در F3/F5 کمی‌سازی شد. نتیجه «Idea6 ضعیف است» به‌طور کلی **نمی‌گیرد**.
+
+## 7. محدودیت‌ها
+1. adapterهای پژوهشی، نه kernel رسمی؛ زمان برای ادعای شتاب معتبر نیست
+2. ۲۹ لایهٔ local دست‌نخورده → صرفه‌جویی واقعی ≈۱۳٪ نه ۸۰٪
+3. pyramidkv در این طول‌ها به fallback می‌رسد؛ h2o فقط replay؛
+   rocketkv فقط فاز prompt
+4. `idea6_oracle` از Y آینده خبر دارد → upper bound، نه روش
+5. ۱۲ synth_kv کنار گذاشته شد (N>4000)
+
+## 8. ریسک‌ها
+| ریسک | اقدام |
+|---|---|
+| مقایسهٔ بین‌دسته‌ای تحت طول کنترل نشده | گزارش n هر دسته؛ عدم ادعای برتری مطلق |
+| active attention به‌عنوان «کاهش حافظه» خوانده شود | ستون KV=1.0 صریح در جدول |
+| ناهماهنگی بودجهٔ اوراکل با `--fraction` | assert برابری طول `important_indices` |
+
+## 9. Provenance
+`results/kv_comparison/` (قطعهٔ اول، ۲۵۰ نمونه) +
+`results/kv_comparison_tail/` (ادامه از idx=250) +
+`results/kv_report/` (aggregate، CI، provenance).
+نکتهٔ قطعه‌بندی: خطای ترتیب آرگومان helper شواهد در قطعهٔ اول، اصلاح
+در قطعهٔ دوم، hash هر دو نسخه حفظ شد.
+```
+
+---
+
+## `sdd/06-spec-surrogate.md`
+
+```markdown
+# Spec 006 — تقریب‌گر سریع اهمیت (Surrogate)
+
+شناسه: SPEC-006 · نسخه: 1.0 · وضعیت: **implemented (پایلوت)**
+فایل مرجع: `idea6_surrogate/` · ورودی: SPEC-003 + SPEC-004 · محور: B/D
+
+## 1. هدف
+تقریب `imp_raw` (Oracle پرهزینه) با یک مدل سبک از ویژگی‌های ارزان
+(یک forward). **هدف، پیش‌بینی مقدار است نه اهمیت ذاتی توکن.**
+
+## 2. الزامات کارکردی
+| ID | الزام |
+|---|---|
+| FR-601 | ویژگی‌ها فقط از پرامپت (زمان تصمیم، نه آینده) |
+| FR-602 | استانداردسازی و PCA فقط روی train |
+| FR-603 | تقسیم در سطح prompt/گروه سؤال؛ نه توکن، نه ردیف |
+| FR-604 | dedup ردیف‌های تکراری قبل از split |
+| FR-605 | مدل‌ها: LightGBM، XGBoost، MLP، BiLSTM، Transformer کوچک |
+| FR-606 | loss ترکیبی: Huber روی z + ListNet درون هر پرامپت |
+| FR-607 | هدف `z = log1p(imp/mean_non_sink)` برای پایداری مقیاس |
+| FR-608 | ارزیابی چندسطحی: Spearman، Recall@K، ΔNLL (پس از pruning)، MAE مقدار |
+| FR-609 | baselineهای غیرعصبی: h2o، attn_window، last_k، random، GBM-فقط-موقعیت |
+| FR-610 | کنترل `full_vs_full_sanity` (KL≈0) |
+
+## 3. الزامات غیرکارکردی
+- NFR-601: هیچ نشت label به feature
+- NFR-602: هیچ نشت train به val/test (در سطح گروه)
+- NFR-603: ثبت checkpoint و validation.json
+
+## 4. قرارداد داده
+`10-data-contracts.md §6` (`metrics.json`, `preds.pkl`, `comparison.csv`,
+`validation.json`)
+
+## 5. معیارهای پذیرش
+| AC | معیار |
+|---|---|
+| AC-601 | `validation.json` نشت صفر در split را تأیید کند |
+| AC-602 | `full_vs_full_sanity` KL < 1e-5 |
+| AC-603 | حداقل یک scorer از h2o و random بهتر باشد در Spearman و ΔNLL |
+| AC-604 | CI بوت‌استرپ روی همهٔ میانگین‌ها |
+
+## 6. نتایج ثبت‌شده (شاهد)
+
+**اصلاح مهم:** فایل ۲۰۰۰ ردیفی فقط ۱۰۰ پرامپت یکتا در ۱۰ گروه سؤال
+دارد؛ هر پرامپت ۲۰ بار تکرار شده. split قبلی بر اساس idx ردیف، نشت
+داشت. اجرای معتبر: ۵-fold، ۶۰/۲۰/۲۰ بر اساس **گروه سؤال**.
+
+### یادگیری برچسب `compact` (بودجه ۲۰٪)
+| مدل/ویژگی | Spearman | Recall@K | ΔNLL (compact) |
+|---|---:|---:|---:|
+| Linear، ۵ feature | 0.666 | 0.411 | 2.184 |
+| LightGBM، ۵ feature | 0.726 | 0.477 | 1.974 |
+| LightGBM، rich | 0.723 | 0.500 | 1.887 |
+| XGBoost، rich | 0.739 | 0.509 | 2.041 |
+| MLP، ۵ feature | 0.664 | 0.392 | 2.374 |
+| MLP، rich | 0.713 | 0.493 | 1.654 |
+| MLP، ۵+hidden | 0.732 | 0.483 | 2.047 |
+| BiLSTM، ۵ feature | 0.684 | 0.391 | 1.326 |
+| **BiLSTM، ۵+hidden** | **0.750** [0.688, 0.811] | 0.493 | 1.398 |
+| **Transformer، rich** | 0.747 | **0.520** | 1.574 |
+| LightGBM، only-pos | 0.695 | 0.455 | 2.362 |
+
+### ΔNLL پس از pruning با برچسب‌های مختلف (آموزش جداگانه)
+| مدل | compact | evict | fattn |
+|---|---:|---:|---:|
+| LightGBM rich | 1.887 | 0.580 | 1.918 |
+| Transformer rich | 1.574 | 0.432 | 0.953 |
+| LightGBM rich+hidden | 1.604 | **0.044** (CI [−0.898, 1.036]) | 1.839 |
+
+### baselineهای بدون آموزش
+| روش | ΔNLL |
+|---|---:|
+| random | 1.935 |
+| last_k | 4.852 |
+| first_k | 3.340 |
+| h2o proxy | 2.383 |
+| attn_window | 2.456 |
+| value_norm | 3.299 |
+
+### یادگیری مقدار (MAE روی مجموع KL ۱۰۰ گام)
+| مدل | MAE |
+|---|---:|
+| baseline ثابت (log-space) | 2.070 |
+| MLP، ۵ feature | 1.586 |
+| **MLP، ۵+hidden** | **1.424** |
+| BiLSTM، ۵+hidden | 1.451 |
+
+**نتیجهٔ صریح:** یادگیری رتبه و مقدار اتفاق افتاده، اما جایگزینی دقیق
+Oracle تأیید نمی‌شود (بهترین MAE ≈ ۷۱٪ خطای نسبی). خروجی = تخمین، نه محاسبهٔ فرمول.
+
+## 7. محدودیت‌ها
+1. ۱۰۰ پرامپت یکتا، ۱۰ گروه → CI پهن
+2. برچسب `compact` با برچسب `evict` متفاوت است (F3)؛ آموزش با یکی برای
+   دیگری بهینه نیست
+3. QA EM صفر برای full model هم → ارزیابی QA در این ترکیب بی‌معنی است
+4. compact/preserve ρ ≈ 0.9985 روی این پرامپت‌های کوتاه؛ تعمیم به بلند نامعلوم
+5. `LightGBM rich+hidden` با evict: بهترین ΔNLL ولی CI عبور از صفر
+
+## 8. ریسک‌ها
+| ریسک | اقدام |
+|---|---|
+| نشت ردیف‌های تکراری | dedup + split گروهی (AC-601) |
+| برچسب اشتباه (compact برای evict) | گزارش هر سه برچسب جداگانه |
+| overfit روی ۱۰۰ پرامپت | افزایش نمونه قبل از مقاله |
+
+## 9. Provenance
+`idea6_surrogate/FINAL_REPORT.md`، `runs/final_v3/comparison.csv`،
+`runs/final_v3/validation.json`، `score.py` (استنتاج بدون Y).
+```
+
+---
+
+## `sdd/07-spec-verification.md`
+
+```markdown
+# Spec 007 — اعتبارسنجی مستقل اوراکل
+
+شناسه: SPEC-007 · نسخه: 1.0 · وضعیت: **implemented (۴ تست)**
+فایل‌های مرجع: `newSunnet_verify/verification/` · اصل‌نامه: II, X
+
+## 1. هدف
+پاسخ به چهار سؤال اعتبارسنجی که نمی‌توان از خود اوراکل گرفت:
+1. آیا مدل پایه حتی جواب می‌دهد؟ (`probe_y_degenerate`)
+2. آیا حذف top-unit ها مدل را بیشتر از random خراب می‌کند؟ (`sanity_check`)
+3. آیا رتبه‌بندی نسبت به `Y` پایدار است؟ (`multi_y_stability`)
+4. آیا بین دو نسخهٔ مدل هم‌راستاست؟ (`cross_model_check`)
+
+## 2. الزامات کارکردی
+| ID | الزام |
+|---|---|
+| FR-701 | `sanity_check` از ماتریس‌های موجود استفاده کند، نه بازاجرای اوراکل |
+| FR-702 | سه سیاست: top-K، random-K، bottom-K (K = round(frac·units))، حذف هم‌زمان |
+| FR-703 | `preserve` (position اصلی، هم‌خوان با `remove`) به‌عنوان پیش‌فرض |
+| FR-704 | ΔNLL روی همان `Y` با مدل کامل به‌عنوان baseline |
+| FR-705 | Wilcoxon paired دوطرفه، بدون ادعای معناداری از ترتیب میانگین |
+| FR-706 | `multi_y`: سه Y (greedy، sampled، gold)؛ طول دقیقاً m با pad EOS؛ horizon مشترک |
+| FR-707 | `cross_model`: متن **canonical مشترک** (بدون chat template) |
+| FR-708 | مقایسه در سطح کاراکتر یا توکن هم‌تراز (نه فرض برابری N) |
+| FR-709 | مدل A آزاد شود قبل از بارگذاری B (OOM) |
+
+## 3. قرارداد داده
+`10-data-contracts.md §7` (sanity/stability/cross_model artifacts)
+
+## 4. معیارهای پذیرش
+| AC | معیار |
+|---|---|
+| AC-701 | sanity: mean(Δtop) > mean(Δrandom) > mean(Δbot) و p(top-random) < 0.05 |
+| AC-702 | multi_y: Spearman بین جفت‌ها گزارش شود با n معتبر |
+| AC-703 | cross_model: پارامترهای جفت یکسان (N یا کاراکتر هم‌تراز) |
+| AC-704 | نبود مقایسهٔ سطح توکن وقتی tokenizerها فرق دارند |
+
+## 5. نتایج ثبت‌شده (شاهد)
+
+### probe_y_degenerate
+| مدل | m_eff | gold در Y | loop_ratio |
+|---|---|---|---|
+| base (pt) | ۱۰۰ | ❌ | ۰.۳۰–۰.۳۸ |
+| instruct (it) | ۹–۱۳ | ✅ | ۰.۰۰ |
+
+⇒ مدل base جواب نمی‌دهد؛ Y تکراری است. **هر نتیجهٔ قبلی روی base،
+روی یک Y تکراری بوده.** (یافتهٔ F6)
+
+### sanity_check (۳۸ ماتریس remove، `results/full`)
+| mode | mean ΔNLL | median |
+|---|---:|---:|
+| top | **+1.652** | +1.777 |
+| random | +0.473 | +0.266 |
+| bottom | +0.008 | −0.000 |
+
+Wilcoxon: top-random p≈0.000؛ random-bottom p≈0.000؛ ترتیب در ۳۸/۳۸.
+⇒ AC-701 pass. (یافتهٔ F4a — اعتبار درون‌سازگاری `remove`)
+
+### multi_y_stability
+| تنظیم | ρ(g,s) | ρ(g,gold) | ρ(s,gold) |
+|---|---|---|---|
+| instruct per-y (n=4) | 1.000 | 1.000 | 1.000 |
+| instruct common (n=3) | 1.000 | 1.000 | 1.000 |
+| base per-y (n=2) | 0.961 | 0.950 | 0.961 |
+| base common (n=2) | 0.984 | 0.950 | 0.958 |
+
+⇒ پایدار حتی در بدترین سناریو (base: greedy تکراری vs gold واقعی). (F7)
+
+### cross_model_check (pt vs it؛ پس از رفع باگ)
+| | mean | min |
+|---|---:|---:|
+| Spearman | **0.853** | 0.660 |
+| Jaccard top-20% | 0.639 | 0.407 |
+
+۶ جفت معتبر؛ ۲ نمونه OOM. **باگ کشف و رفع‌شده:** `render()` از chat
+template استفاده می‌کرد که برای pt و it متفاوت است → N متفاوت →
+«tokenizer mismatch» در همهٔ جفت‌ها. اصلاح: متن canonical مشترک.
+
+## 6. محدودیت‌ها
+1. sanity فقط `remove` را تأیید می‌کند، **نه** مفید بودن برچسب برای `evict`
+   (اصل II؛ F4b را ببینید)
+2. cross_model روی یک خانواده (Gemma pt/it)؛ مقایسهٔ سطح توکن با Qwen
+   معتبر نیست (tokenizer متفاوت)
+3. n پایداری کوچک (۲–۶)
+4. multi_y روی instruct بی‌معنی است (هر سه Y یکسان)
+
+## 7. ریسک‌ها
+| ریسک | اقدام |
+|---|---|
+| تفسیر «sanity پاس شد ⇒ oracle برای evict خوب است» | متن صریح در گزارش: دو سؤال جدا |
+| نشت prompt_ids/y_ids بین جفت‌ها | assert برابری (in `verify_y`) |
+| OOM در cross_model | آزادسازی مدل A؛ گزارش نمونه‌های skip |
+
+## 8. Provenance
+`newSunnet_verify/results/verify/sanity/`، `sanity_full/`،
+`stability_instruct_common/`، `stability_pt_pery/`، `stability_pt_common/`،
+`cross_model/`
+```
+
+---
+
+## `sdd/08-findings-registry.md`
+
+```markdown
+# Findings Registry — هر یافته یک شناسه، یک شاهد
+
+وضعیت: living · قواعد: هر عدد به مسیر اشاره دارد (اصل III)
+
+| ID | ادعا | مدل/داده | عدد کلیدی | شاهد | وضعیت |
+|---|---|---|---|---|---|
+| F1 | مسیر decode کش‌شده، بازنمایی دقیق (bit-faithful) forward تازه است؛ prefill-masked == GT | gemma-1b، fp32، N=300 | KL(GT‖mask-only)=0.0029؛ baseline max\|Δ\|=5e-5 | `results/` §7 gt_check | ✅ پایه |
+| F2 | با اوراکل evict صحیح (mask-only)، Idea6 از random بسیار بهتر است | Qwen2.5-3B، ۳۸ نمونه | future_KL 2.36 vs 8.49؛ evidence recall 0.73 vs 0.20 | `results/kv_evict_table_qwen/summary.json` | ✅ |
+| F3 | برچسب remove و evict تقریباً بی‌ارتباط‌اند | Qwen2.5-3B، ۳۸ جفت | ρ=0.012، Jaccard=0.139 | `newSunnet_verify/remove_vs_evict_detail.json` | ✅ |
+| F4a | sanity check درون‌سازگاری remove: top ≫ random ≫ bottom | gemma-3-4b-pt، ۳۸ | +1.652 / +0.473 / +0.008؛ p≈0 | `newSunnet_verify/results/verify/sanity_full/` | ✅ |
+| F4b | وقتی برچسب‌های remove با KV eviction (gather) ارزیابی شوند، از random ضعیف‌ترند | gemma-3-4b-pt، ۳۸ | ΔNLL 2.33 vs 1.63؛ recall 0.113 vs 0.197 | `results/kv_report/comparison.md` | ✅ |
+| F5 | گسست remove/evict روی خانوادهٔ سوم تکرار می‌شود | Hermes-3-Llama-3.1-8B، ۳۸ | ρ=0.021، Jaccard=0.140 | `newSunnet_verify/remove_vs_evict_hermes38.json` | ✅ |
+| F6 | مدل base (gemma-3-4b-pt) Y تکراری تولید می‌کند | gemma pt | m_eff=100، loop≈0.34، gold_in_Y=False | `verification/results/` | ✅ |
+| F7 | رتبه‌بندی اهمیت نسبت به Y پایدار است | base و instruct | base per-y ρ=0.95–0.98؛ common 0.95–0.98 | `results/verify/stability_*` | ✅ |
+| F8 | اوراکل in-sample است (به Y دسترسی دارد) → upper bound | همه | ذاتی تعریف | `report.md` §5 | ✅ مستند |
+| F9 | scorer سبک می‌تواند رتبه/مقدار را تا حدی تقریب بزند | ۱۰۰ پرامپت یکتا | BiLSTM hidden ρ=0.750؛ MLP hidden MAE=1.424 | `idea6_surrogate/runs/final_v3/` | 🟡 پایلوت |
+| F10 | نشت داده در split قبلی ۲۰۰۰ ردیف | ۱۰۰ پرامپت یکتا، ۲۰× تکرار | — | `idea6_surrogate/FINAL_REPORT.md` | ✅ اصلاح شد |
+| F11 | همبستگی رتبه‌ای compact/preserve روی پرامپت کوتاه ≈ ۱ | gemma pt | ρ=0.9985 | `results/full2000_*` | 🟡 دامنه محدود |
+| F12 | `zero` بردار صفر روی GPT-2 = توکن OOD، نه «هیچ» | GPT-2 | — | تحلیل مداخلات | ✅ تحلیلی |
+| F13 | آستانهٔ تشخیص/عامل: توکن اول KL بزرگ می‌دهد که محتوایی نیست | همه | — | `report.md`/نقد | ✅ |
+
+## نحوهٔ خواندن F4a vs F4b (مهم‌ترین نکتهٔ برنامه)
+
+F4a و F4b **ناقض هم نیستند**:
+- F4a: اگر برچسب‌های `remove` را با **همان مداخلهٔ remove** ارزیابی کنی،
+  اوراکل معتبر است.
+- F4b: اگر همان برچسب‌ها را با **evict** ارزیابی کنی، افت می‌کند.
+- F2: اگر برچسب‌های `evict` (mask-only صحیح) را با evict ارزیابی کنی،
+  دوباره معتبر است.
+
+⇒ **برچسب importance فقط تحت معناشناسیِ مداخلهٔ خودش معتبر است.** این
+ادعای مرکزی محور A است (RQ2).
+
+## وضعیت شناسه‌های استفاده‌نشده
+`F6` در Spec 001 اصلی تعریف نشده بود؛ به‌عنوان یافتهٔ probe_y تخصیص
+داده شد. اگر نسخهٔ اصلی F6 معنای دیگری داشت، این تخصیص را برگردانید و
+F6 را در جای مناسب ثبت کنید.
+```
+
+---
+
+## `sdd/09-task-board.md`
+
+```markdown
+# Task Board — وظایف، فازها، پذیرش
+
+وضعیت: living · هر Task به AC یک Spec متصل است.
+
+## فاز A — پایه (انجام‌شده)
+
+| ID | کار | Spec | AC | وضعیت | شاهد |
+|---|---|---|---|---|---|
+| T-A01 | ساخت سوئیت ۳۵۰ رکوردی | SPEC-002 | AC-201..205 | ✅ | `suite.jsonl` |
+| T-A02 | اجرای اوراکل remove روی synth | SPEC-003 | AC-303..305 | ✅ | `results/full/` |
+| T-A03 | مقایسهٔ ۱۲ روش KV | SPEC-005 | AC-501..505 | ✅ | `results/kv_report/` |
+| T-A04 | native validation (full_kv) | SPEC-005 | AC-502 | ✅ | `kv_comparison/native_validation.json` |
+| T-A05 | استخراج ویژگی (پایلوت) | SPEC-004 | AC-401 | ❌ | `feats.pkl` نامعتبر |
+
+## فاز B — اعتبارسنجی (اجرا شد)
+
+| ID | کار | Spec | AC | وضعیت | شاهد |
+|---|---|---|---|---|---|
+| T-B01 | probe_y_degenerate | SPEC-007 | — | ✅ | F6 |
+| T-B02 | sanity_check روی ۳۸ remove | SPEC-007 | AC-701 | ✅ | F4a |
+| T-B03 | multi_y (per-y + common) | SPEC-007 | AC-702 | ✅ | F7 |
+| T-B04 | cross_model (پس از رفع باگ template) | SPEC-007 | AC-703..704 | ✅ | F-cross |
+| T-B05 | gt_check §7 (mask-only vs gather vs GT) | SPEC-003 | AC-301..302 | ✅ | F1 |
+| T-B06 | evict mask-only روی Qwen | SPEC-003 | — | ✅ | `full_maskonly_qwen25/` |
+| T-B07 | kv_evict_table با برچسب درست | SPEC-003+005 | — | ✅ | F2 |
+| T-B08 | گسست remove/evict روی Qwen | SPEC-003 | — | ✅ | F3 |
+| T-B09 | تکرار گسست روی Hermes | SPEC-003 | — | ✅ | F5 |
+
+## فاز C — مقالهٔ ۱ (در جریان)
+
+| ID | کار | Spec | AC | وضعیت | وابستگی |
+|---|---|---|---|---|---|
+| T-C01 | sanity روی ۳ مدل | SPEC-007 | AC-111 | 🟡 Qwen+Gemma دارد، Hermes لازم | T-B02 |
+| T-C02 | جدول KV ۳ مدل × ۶ روش | SPEC-005 | AC-112 | 🟡 Gemma/Qwen دارد، Hermes لازم | T-A03 |
+| T-C03 | ρ/Jaccard گسست ۳ مدل | SPEC-003 | AC-113 | 🟡 ۲ مدل؛ Hermes در حال | T-B08/09 |
+| T-C04 | رفع نامعتبری `feats.pkl` | SPEC-004 | AC-404..406 | ⬜ | T-A05 |
+| T-C05 | مرور ادبی ≥۱۵ رفرنس | SPEC-001 | AC-114 | ⬜ | — |
+| T-C06 | review طبق اصل‌نامه | SPEC-001 | AC-115 | ⬜ | T-C01..05 |
+
+## فاز D — مقالهٔ ۲ (آینده)
+
+| ID | کار | Spec | AC | وضعیت |
+|---|---|---|---|---|
+| T-D01 | spec نهایی scorer (≥۳ مدل) | SPEC-006 | AC-121 | 🟡 پایلوت موجود |
+| T-D02 | baseline ادبی (H2O/SnapKV کامل) | SPEC-005 | AC-121 | ⬜ |
+| T-D03 | eval out-of-sample روی holdout | SPEC-006 | AC-122 | ⬜ |
+| T-D04 | منحنی دقت–هزینه | SPEC-006 | AC-123 | ⬜ |
+| T-D05 | تصمیم دربارهٔ label (compact/evict) برای product | SPEC-001 | AC-122 | ⬜ |
+
+## گیت‌های پذیرش (Definition of Done)
+
+### گیت ۱ — مقالهٔ ۱
+- [ ] AC-111..115 همه pass
+- [ ] F2, F3, F4a, F4b, F5, F7 همه با مسیر شاهد
+- [ ] هیچ عدد بی‌مسیر (grep check)
+
+### گیت ۲ — مقالهٔ ۲
+- [ ] AC-121..123 همه pass
+- [ ] scorer در split گروهی، بدون نشت
+- [ ] گزارش صریح: مقدار تخمینی، نه محاسبهٔ فرمول
+
+### گیت ۳ — پروپوزال
+- [ ] هر RQ ≥۱ AC با شاهد
+- [ ] محدودیت‌ها و ریسک‌ها صریح
+- [ ] سه محور تأییدشده
+```
+
+---
+
+## `sdd/10-data-contracts.md`
+
+```markdown
+# Data Contracts — اسکیمای آرتیفکت‌ها
+
+وضعیت: frozen · تغییر = نسخهٔ جدید + migration
+
+## §1. `suite.jsonl` (یک رکورد در هر خط)
+
+```json
+{
+  "idx": 0,
+  "category": "qa_short|math_easy_cot|math_hard_think|mcq_hard|code|chat_multiturn|tool_call|qa_multidoc|long_doc_mcq|synth_niah|synth_kv",
+  "messages": [{"role": "user|assistant|system", "content": "..."}],
+  "tools": null | [{"type":"function","function":{...}}],
+  "thinking": false,
+  "gold": null | "...",
+  "evidence": ["..."],
+  "meta": {"target_tokens": 1000, "depth": 0.42, "pairs": 45, "...": "..."}
+}
+```
+- `idx` یکتا، پیوسته، 0-based
+- `evidence` برای synth حتماً پر؛ برای واقعی در صورت وجود
+- کلیدهای اختیاری با `setdefault` نرمال شده‌اند (FR-204)
+
+## §2. `run_meta.json` (اوراکل)
+
+```json
+{
+  "suite": "suite.jsonl",
+  "model": "google/gemma-3-4b-pt",
+  "out": "results/full",
+  "scheme": "remove|evict",
+  "m": 100, "frac": 0.2, "sink": 4, "max_units": 256,
+  "max_prompt_tokens": 4000, "batch": 8, "batch_tokens": 24000,
+  "dtype": "bfloat16", "device": "cuda",
+  "categories": "synth_niah,synth_kv",
+  "limit": null, "resume": false
+}
+```
+
+## §3. `matrices/s_XXXXXX.npz` (اوراکل)
+
+| کلید | شکل | dtype | معنا |
+|---|---|---|---|
+| `diffs` | (U, m) | float32 | KL هر واحد در هر گام |
+| `imp_raw` | (N,) | float64 | importance per token (broadcast از بلوک) |
+| `imp_units` | (U,) | float64 | importance per unit |
+| `unit_bounds` | (U, 2) | int64 | [start, end) هر واحد |
+| `block_size` | scalar | int | 1 اگر تک‌توکن |
+| `important_indices` | (K,) | int64 | top-K با حصر sink |
+| `prompt_ids` | (N,) | int64 | توکن‌های chat-formatted |
+| `y_ids` | (m,) | int64 | continuation ثابت |
+| `m_eff` | scalar | int | تا اولین EOS (شامل) |
+| `evidence_idx` | (E,) | int64 | ایندکس توکن‌های شاهد |
+
+## §4. `feats.pkl`
+
+```python
+{
+  "names": List[str],       # D ستون
+  "items": [
+    {"idx": int, "ids": int64[N], "X": float32[N,D], "H": float16[N,hid],
+     "names": List[str], "y": int64[m], "fattn": float64[N]}
+  ],
+  "model": str
+}
+```
+**قید AC:** D یکسان در همهٔ items؛ تمام X و H finite. (وضعیت فعلی نقض)
+
+## §5. آرتیفکت‌های مقایسهٔ KV
+
+### `manifest.json`
+```json
+{
+  "settings": {"suite", "oracle_dir", "out", "model", "scope",
+               "fraction", "horizon", "max_prompt_tokens",
+               "gold_max_tokens", "methods", "seed",
+               "suite_sha256", "oracle_meta_sha256", "adapter_sha256"},
+  "torch": "...", "transformers": "...",
+  "methods": [{"name","category","source","commit","status","limitation","url"}],
+  "gpu": "...", "scope_warning": "...", "metrics": "..."
+}
+```
+
+### `per_sample.jsonl`
+```json
+{
+  "idx": 0, "category": "...", "N": 1031, "B": 206,
+  "future_tokens": 100, "method": "snapkv", "method_category": "retained_kv",
+  "evidence_tokens": 8, "gold_tokens": 5,
+  "future_kl": 0.11, "future_kl_sum": 10.9, "delta_nll_y": 0.13,
+  "delta_nll_gold": 0.21, "gold_nll_full": 1.4, "top1_agreement": 0.93,
+  "retained_evidence_recall": 0.56, "oracle_overlap": 0.27,
+  "global_retained_fraction": 0.20, "logical_kv_ratio": 0.866,
+  "allocated_kv_ratio": 0.866, "full_kv_bytes": 1.2e8,
+  "allocated_kv_bytes": 1.0e8, "adapter_seconds": 1.2,
+  "shared_prefill_seconds": 0.4,
+  "active_prompt_fraction": null, "active_evidence_recall": null
+}
+```
+
+### `exclusions.json`
+```json
+[{"idx": 303, "category": "synth_kv", "N": 9230, "reason": "prompt_length_cap"}]
+```
+
+### `inputs.jsonl`
+```json
+{"idx": 0, "N": 1031, "B": 206, "future_tokens": 100,
+ "gold_tokens": 5, "gold_total_tokens": 5, "oracle_block_size": 2,
+ "evidence_tokens": 8, "generated_text": "...", "gold": "...",
+ "generation_contains_gold": true}
+```
+
+### `native_validation.json`
+```json
+{"future_kl": 0.0, "future_kl_sum": 0.0, "delta_nll_y": 0.0,
+ "top1_agreement": 1.0, "idx": 0, "N": 34, "max_abs_logits": 0.0}
+```
+
+### `provenance.json` (aggregate)
+```json
+{"runs": [{"run": "...", "settings": {...}, "methods": [...]}],
+ "native_validations": [...],
+ "complete": true, "evaluated_prompts": 338, "excluded_prompts": 12,
+ "category_counts": {...}, "row_count": 4094, "exclusions": [...]}
+```
+
+## §6. آرتیفکت‌های Surrogate
+
+### `metrics.json`
+```json
+{"method": "bilstm_hidden", "target": "compact", "fold": 0,
+ "spearman": {"n": 20, "mean": 0.75, "ci95": [0.688, 0.811]},
+ "recall_at_k": {...}, "delta_nll": {...}}
+```
+
+### `preds.pkl`
+```python
+{"method": {"idx": {"imp_pred": float64[N], "ids": int64[N], "y": int64[m]}}}
+```
+
+### `comparison.csv`
+ستون‌ها: `method, target, fold, n, spearman_mean, spearman_ci_lo,
+spearman_ci_hi, recall_mean, delta_nll_mean, delta_nll_ci_lo,
+delta_nll_ci_hi, mae`
+
+### `validation.json`
+```json
+{"split_by": "question_group", "unique_prompts": 100,
+ "folds": 5, "train": 60, "val": 20, "test": 20,
+ "leakage_check": {"token_overlap_train_test": 0, "row_dup_removed": 1900},
+ "sanity_full_vs_full_kl_max": 8.54e-7,
+ "checkpoints": {...}}
+```
+
+## §7. آرتیفکت‌های Verification
+
+### `sanity_check.csv`
+ستون‌ها: `idx, category, N, num_units, k_units, block, m_eff,
+nll_base, nll_top, delta_top, nll_random, delta_random,
+nll_bottom, delta_bottom`
+
+### `stability.csv`
+ستون‌ها: `idx, N, category, m_eff_greedy, m_eff_sampled, m_eff_gold,
+spearman_greedy_sampled, jaccard_greedy_sampled,
+spearman_greedy_gold, jaccard_greedy_gold,
+spearman_sampled_gold, jaccard_sampled_gold`
+
+### `cross_model.csv`
+ستون‌ها: `idx, N_a, N_b, spearman, jaccard, note`
+
+### `summary.json` (sanity)
+```json
+{"top-random": {"pairs": 38, "mean_difference": 1.18,
+                "p_two_sided": 0.000, "note": "exploratory unadjusted paired tests"},
+ "random-bottom": {...}, "top-bottom": {...}}
+```
+```
+
+---
+
+## خلاصهٔ تصمیم‌های تبدیل (چه چیزی چرا تغییر کرد)
+
+1. **تناقض ظاهری «اوراکل خوب/بد» حل شد.** با تفکیک F4a (سازگاری درون‌مداخله‌ای) از F4b (انتقال برچسب به مداخلهٔ دیگر) و F2 (برچسب درست)، هر سه یافته در یک روایت منسجم جای گرفتند. این دقیقاً همان RQ2 است و باید به‌عنوان ادعای مرکزی مقالهٔ ۱ نوشته شود، نه به‌عنوان تناقض.
+
+2. **اعداد پراکنده در یک Registry متمرکز شدند** (F1–F13) با مسیر شاهد. Spec 001 اصلی به F1–F7 اشاره می‌کرد اما تعریف دقیق نداشت؛ اکنون هر شناسه یک ردیف قابل‌ردیابی دارد. F6 (که در متن اصلی استفاده نشده بود) به یافتهٔ `probe_y` تخصیص یافت و این تصمیم صریح ثبت شد.
+
+3. **SPEC-004 به‌صراحت «نامعتبر» علامت خورد.** خروجی `feats.pkl` (D ناسازگار، ۵۶ مقدار غیرمتناهی) نباید به‌عنوان یک مؤلفهٔ سالم در SDD ثبت شود؛ معیار AC-401/402 نقض شده و اقدام لازم (AC-404..406) به Task Board منتقل شد.
+
+4. **SPEC-006 (surrogate) با نشت دادهٔ کشف‌شده بازنویسی شد.** یافتهٔ ۲۰× تکرار در فایل ۲۰۰۰ ردیفی و اصلاح split به سطح گروه سؤال، به‌عنوان الزام FR-603/604 ثبت شد — نه به‌عنوان یک نکتهٔ جانبی.
+
+5. **اصل II به‌عنوان قانون اساسی تثبیت شد** و در تمام Specها ارجاع گرفت. این تنها راه جلوگیری از تکرار خطای تاریخی (ارزیابی برچسب remove با evict) است.
+
+6. **Data Contracts از هم جدا شد** تا تغییر اسکیما در آینده بدون دست‌زدن به Specها انجام شود.
+
+اگر بخواهید، قدم بعدی می‌تواند این باشد: `sdd/11-roadmap.md` با بودجهٔ GPU و توالی دقیق فاز C (سه مدل) و فاز D (scorer)، یا اجرای T-C04 (رفع نامعتبری `feats.pkl`) با اسکیمای جدید.
